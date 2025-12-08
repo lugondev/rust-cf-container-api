@@ -1,47 +1,119 @@
-# Containers Starter
+# Rust Cloudflare Container API
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/containers-template)
+A high-performance API service built with Rust (Actix-web) running in Cloudflare Workers Containers, orchestrated by a TypeScript Worker using Hono.
 
-![Containers Template Preview](https://imagedelivery.net/_yJ02hpOMj_EnGvsU2aygw/5aba1fb7-b937-46fd-fa67-138221082200/public)
+## Overview
 
-<!-- dash-content-start -->
+This project demonstrates how to run a Rust-based HTTP server as a container on Cloudflare's edge network. It combines:
 
-This is a [Container](https://developers.cloudflare.com/containers/) starter template.
+- **Rust Container**: Actix-web server providing REST API endpoints
+- **TypeScript Worker**: Hono-based router for request orchestration and load balancing
+- **Cloudflare Containers**: Deploy and scale containerized workloads at the edge
 
-It demonstrates basic Container configuration, launching and routing to individual container, load balancing over multiple container, running basic hooks on container status changes.
+## Features
 
-<!-- dash-content-end -->
-
-Outside of this repo, you can start a new project with this template using [C3](https://developers.cloudflare.com/pages/get-started/c3/) (the `create-cloudflare` CLI):
-
-```bash
-npm create cloudflare@latest -- --template=cloudflare/templates/containers-template
-```
+- ✅ Health check and status endpoints
+- ✅ External API integration (IP information fetching)
+- ✅ Container lifecycle management (start, stop, error handling)
+- ✅ Load balancing across multiple container instances
+- ✅ Singleton and multi-instance routing patterns
+- ✅ Automatic container sleep after 2 minutes of inactivity
 
 ## Getting Started
 
-First, run:
+### Prerequisites
+
+- Node.js 18+ and pnpm
+- Rust toolchain (for local container development)
+- Cloudflare account with Workers enabled
+- Docker (for containerization)
+
+### Installation
+
+Install dependencies:
 
 ```bash
-npm install
-# or
-yarn install
-# or
 pnpm install
-# or
-bun install
 ```
 
-Then run the development server (using the package manager of your choice):
+### Development
+
+Run the development server:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
-Open [http://localhost:8787](http://localhost:8787) with your browser to see the result.
+OpeAPI Endpoints
 
-You can start editing your Worker by modifying `src/index.ts` and you can start
-editing your Container by editing the content of `container_src`.
+### Worker Routes (Port 8787)
+
+- `GET /` - List all available endpoints
+- `GET /container/:id` - Route to a specific container instance by ID
+- `GET /lb` - Load-balanced request across 3 container instances
+- `GET /singleton` - Route to a single shared container instance
+- `GET /error` - Demonstrate error handling
+- `GET /api/*` - Forward requests to container API
+
+### Container API Routes (Port 8080)
+
+- `GET /` - Welcome message
+- `GET /api/` - API documentation (JSON)
+- `GET /api/health` - Health check endpoint
+- `GET /api/ping` - Simple ping-pong test
+- `GET /api/ip` - Fetch IP information from ipinfo.io
+
+## Configuration
+
+### Container Settings
+
+Configured in `src/index.ts` via the `MyContainer` class:
+
+```typescript
+defaultPort = 8080;           // Container listening port
+sleepAfter = "2m";           // Inactivity timeout
+envVars = { ... };           // Environment variables
+```
+
+### Cloudflare Configuration
+
+See `wrangler.jsonc`:
+
+- `max_instances: 10` - Maximum concurrent containers
+- Container image built from `./Dockerfile`
+- Durable Objects binding for container orchestration
+
+## Deploying To Production
+
+Deploy to Cloudflare:
+
+```bash
+pnpm run deploy
+```
+
+This will:
+1. Build the Rust container image
+2. Upload the TypeScript Worker
+3. Deploy to Cloudflare's global network
+
+## Tech Stack
+
+- **Container**: Rust + Actix-web + Reqwest
+- **Worker**: TypeScript + Hono
+- **Platform**: Cloudflare Workers + Containers + Durable Objects
+
+## Learn More
+
+- [Cloudflare Containers Documentation](https://developers.cloudflare.com/containers/)
+- [Container Helper Class](https://github.com/cloudflare/containers)
+- [Actix-web Documentation](https://actix.rs/)
+- [Hono Framework](https://hono.dev/)
+### Project Structure
+
+- `src/index.ts` - TypeScript Worker (Hono router and container orchestration)
+- `container/src/main.rs` - Rust container (Actix-web API server)
+- `Dockerfile` - Container image configuration
+- `wrangler.jsonc` - Cloudflare Workers configuration
 
 ## Deploying To Production
 
