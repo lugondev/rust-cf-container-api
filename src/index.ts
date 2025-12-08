@@ -67,4 +67,10 @@ app.get("/singleton", async (c) => {
 	return await container.fetch(c.req.raw);
 });
 
+// Simple test route - forward all /api/* requests to container
+app.all("/api/*", async (c) => {
+	const container = getContainer(c.env.MY_CONTAINER);
+	return await container.fetch(c.req.raw);
+});
+
 export default app;
