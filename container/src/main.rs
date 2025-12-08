@@ -36,6 +36,30 @@ async fn get_ip() -> impl Responder {
     }
 }
 
+async fn api_docs() -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "service": "Rust Container API",
+        "version": "1.0.0",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/api/health",
+                "description": "Health check endpoint - returns service status"
+            },
+            {
+                "method": "GET",
+                "path": "/api/ping",
+                "description": "Simple ping endpoint - returns 'pong'"
+            },
+            {
+                "method": "GET",
+                "path": "/api/ip",
+                "description": "Get IP information from ipinfo.io"
+            }
+        ]
+    }))
+}
+
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("Hello from Rust on Cloudflare!")
 }
@@ -49,6 +73,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(index))
             .service(
                 web::scope("/api")
+                    .route("/", web::get().to(api_docs))
                     .route("/health", web::get().to(health))
                     .route("/ping", web::get().to(ping))
                     .route("/ip", web::get().to(get_ip))

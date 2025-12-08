@@ -37,7 +37,8 @@ app.get("/", (c) => {
 			"GET /container/<ID> - Start a container for each ID with a 2m timeout\n" +
 			"GET /lb - Load balance requests over multiple containers\n" +
 			"GET /error - Start a container that errors (demonstrates error handling)\n" +
-			"GET /singleton - Get a single specific container instance",
+			"GET /singleton - Get a single specific container instance\n" +
+			"GET /api/* - Forward to container (GET /api/ for API documentation)",
 	);
 });
 
