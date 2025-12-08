@@ -14,25 +14,17 @@ async fn ping() -> impl Responder {
 
 async fn get_ip() -> impl Responder {
     match reqwest::get("https://ipinfo.io/json").await {
-        Ok(response) => {
-            match response.text().await {
-                Ok(body) => {
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body)
-                }
-                Err(_) => {
-                    HttpResponse::InternalServerError().json(json!({
-                        "error": "Failed to read response"
-                    }))
-                }
-            }
-        }
-        Err(_) => {
-            HttpResponse::InternalServerError().json(json!({
-                "error": "Failed to fetch IP info"
-            }))
-        }
+        Ok(response) => match response.text().await {
+            Ok(body) => HttpResponse::Ok()
+                .content_type("application/json")
+                .body(body),
+            Err(_) => HttpResponse::InternalServerError().json(json!({
+                "error": "Failed to read response"
+            })),
+        },
+        Err(_) => HttpResponse::InternalServerError().json(json!({
+            "error": "Failed to fetch IP info"
+        })),
     }
 }
 
@@ -67,16 +59,18 @@ async fn index() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting server on http://0.0.0.0:8080");
-    
+
     HttpServer::new(|| {
         App::new()
             .route("/", web::get().to(index))
+            .route("/api", web::get().to(api_docs))
             .service(
                 web::scope("/api")
-                    .route("/", web::get().to(api_docs))
                     .route("/health", web::get().to(health))
                     .route("/ping", web::get().to(ping))
                     .route("/ip", web::get().to(get_ip))
+                    .route("/docs", web::get().to(api_docs))
+                    .route("/", web::get().to(api_docs)),
             )
     })
     .bind(("0.0.0.0", 8080))?
