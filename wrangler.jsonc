@@ -47,7 +47,8 @@
 		{
 			"class_name": "MyContainer",
 			"image": "./Dockerfile",
-			"max_instances": 10
+			"max_instances": 10,
+			"rollout_percentage_steps": [100]
 		}
 	],
 	"durable_objects": {

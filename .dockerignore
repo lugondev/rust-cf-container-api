@@ -1,0 +1,83 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Rust build artifacts
+container/target/
+**/target/
+**/*.rs.bk
+**/*.pdb
+
+# Rust debug files
+container/debug/
+**/debug/
+**/.cargo/
+
+# Incremental compilation files
+**/incremental/
+
+# Cargo lock for libraries (keep for applications)
+# Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node.js (if you have Node.js tooling)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+pnpm-lock.yaml
+
+# TypeScript build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Cloudflare Workers
+.wrangler/
+wrangler.toml
+worker-configuration.d.ts
+
+# Logs and temporary files
+*.log
+*.log.*
+deploy.log
+tmp/
+temp/
+
+# Documentation and non-essential files
+README.md
+*.md
+!container/README.md
+docs/
+.docs/
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Test files
+**/tests/
+**/*_test.rs
+**/*_tests.rs
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS specific
+Thumbs.db

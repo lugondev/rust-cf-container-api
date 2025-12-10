@@ -1,68 +1,121 @@
 # syntax=docker/dockerfile:1
 
 #
-# ---- Builder Stage ----
+# ---- Planner Stage ----
 #
-# ARG TARGETPLATFORM is an automatic variable provided by Docker buildx.
-# It will be 'linux/amd64' or 'linux/arm64' depending on the --platform flag.
-# We are setting a default value for builds that don't use the --platform flag.
+# Using Debian-based Rust image
 ARG TARGETPLATFORM=linux/amd64
 
-# Use a builder image with Rust installed.
-FROM rust:1-alpine AS build
+FROM rust:1-slim-bookworm AS planner
 
-# Set build-time arguments that will be used in subsequent commands.
-# This makes the value available inside the build stage.
-ARG TARGETPLATFORM
+# Install cargo-chef
+RUN cargo install cargo-chef
 
-# Install Zig, which will act as a universal C cross-compiler,
-# then install cargo-zigbuild to integrate it with Cargo.
-RUN apk add --no-cache zig build-base pkgconf && \
-    cargo install cargo-zigbuild
-
-# Add the cargo bin directory to the PATH to make cargo-zigbuild available.
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Set the working directory.
 WORKDIR /app
 
-# Copy the Cargo files first to leverage Docker's layer caching.
-COPY container/Cargo.toml ./
+# Copy all source files to prepare the recipe
+COPY container/ ./
 
-# This single RUN command determines the correct Rust target, installs it,
-# and builds the project's dependencies using the robust cargo-zigbuild.
-RUN case ${TARGETPLATFORM} in \
-    "linux/amd64") RUST_TARGET="x86_64-unknown-linux-musl" ;; \
-    "linux/arm64") RUST_TARGET="aarch64-unknown-linux-musl" ;; \
-    esac && \
-    rustup target add ${RUST_TARGET} && \
-    mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo zigbuild --release --target ${RUST_TARGET} || true
+# Generate the recipe file
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Now, copy the actual source code. This will be a separate layer.
-COPY container/src/ ./src/
+#
+# ---- Dependency Builder Stage ----
+#
+# Using Debian Bookworm-based Rust image
+FROM rust:1-slim-bookworm AS dependencies
 
-# Build the final application and create a stable symlink to the binary.
-RUN case ${TARGETPLATFORM} in \
-    "linux/amd64") RUST_TARGET="x86_64-unknown-linux-musl" ;; \
-    "linux/arm64") RUST_TARGET="aarch64-unknown-linux-musl" ;; \
-    esac && \
-    rm -f target/${RUST_TARGET}/release/deps/server* && \
-    cargo zigbuild --release --target ${RUST_TARGET} && \
-    ln -s /app/target/${RUST_TARGET}/release/server /app/server
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-chef
+RUN cargo install cargo-chef
+
+# Download and install pre-built sccache binary
+RUN curl -Lo sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz && \
+    tar xzf sccache.tar.gz && \
+    mv sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/ && \
+    chmod +x /usr/local/bin/sccache && \
+    rm -rf sccache.tar.gz sccache-v0.8.2-x86_64-unknown-linux-musl
+
+# Configure sccache
+ENV RUSTC_WRAPPER=/usr/local/bin/sccache \
+    SCCACHE_DIR=/sccache \
+    CARGO_INCREMENTAL=0
+
+WORKDIR /app
+
+# Copy the recipe from planner stage and full workspace structure for local dependencies
+COPY --from=planner /app/recipe.json recipe.json
+COPY --from=planner /app/Cargo.toml Cargo.toml
+COPY --from=planner /app/src src
+
+# Build dependencies only - this layer will be cached
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/sccache \
+    cargo chef cook --release --recipe-path recipe.json && \
+    sccache --show-stats
+
+#
+# ---- Builder Stage ----
+#
+# Using Debian Bookworm-based Rust image
+FROM rust:1-slim-bookworm AS build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install pre-built sccache binary
+RUN curl -Lo sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v0.8.2/sccache-v0.8.2-x86_64-unknown-linux-musl.tar.gz && \
+    tar xzf sccache.tar.gz && \
+    mv sccache-v0.8.2-x86_64-unknown-linux-musl/sccache /usr/local/bin/ && \
+    chmod +x /usr/local/bin/sccache && \
+    rm -rf sccache.tar.gz sccache-v0.8.2-x86_64-unknown-linux-musl
+
+# Configure sccache
+ENV RUSTC_WRAPPER=/usr/local/bin/sccache \
+    SCCACHE_DIR=/sccache \
+    CARGO_INCREMENTAL=0
+
+WORKDIR /app
+
+# Copy the built dependencies from dependencies stage
+COPY --from=dependencies /app/target target
+COPY --from=dependencies /usr/local/cargo /usr/local/cargo
+
+# Copy the actual source code
+COPY container/ ./
+
+# Build the final application
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/sccache \
+    cargo build --release && \
+    sccache --show-stats
 
 #
 # ---- Final Stage ----
 #
-# Use a minimal 'scratch' image for the final container.
-FROM scratch
+FROM debian:bookworm-slim
 
-# Copy the built binary using the stable symlink created in the build stage.
-COPY --from=build /app/server /server
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Expose the port the application will listen on.
+# Copy the built binary
+COPY --from=build /app/target/release/server /usr/local/bin/server
+
+# Expose the port the application will listen on
 EXPOSE 8080
 
-# Set the entrypoint for the container.
-CMD ["/server"]
+# Set the entrypoint
+CMD ["server"]
